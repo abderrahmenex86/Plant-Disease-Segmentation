@@ -11,4 +11,4 @@ class BCEDiceLoss(nn.Module):
         )
 
     def forward(self, outputs, masks):
-        return self.bce(outputs, masks) + self.dice(outputs, masks)
+        return 0.8 * self.bce(outputs, masks) + 0.2 * self.dice(outputs, masks)
