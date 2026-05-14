@@ -34,9 +34,7 @@ class PlantSegDataset(Dataset):
         else:
             print(f"Total errors: {len(self.error_log)}")
             for error in self.error_log:
-                print(
-                    f"Index: {error['index']}, Error: {error['error']}, Path: {error['path']}"
-                )
+                print(f"Index: {error['index']}, Error: {error['error']}, Path: {error['path']}")
 
     def __getitem__(self, idx):
         try:
@@ -45,15 +43,14 @@ class PlantSegDataset(Dataset):
             if image.mode != "RGB":
                 raise ValueError(f"Image {image_path} is not RGB: {image.mode}")
 
-            mask_path = os.path.join(
-                self.masks_dir, self.filenames[idx].replace(".jpg", ".png")
-            )
+            mask_path = os.path.join(self.masks_dir, self.filenames[idx].replace(".jpg", ".png"))
 
             mask = Image.open(mask_path).convert("L")
             mask = np.array(mask)
             mask = (mask > 0).astype(np.uint8)
             mask = torch.from_numpy(mask).unsqueeze(0)
             mask = tv_tensors.Mask(mask)
+            image = tv_tensors.Image(image)
 
             if self.transform:
                 image, mask = self.transform(image, mask)
@@ -66,7 +63,6 @@ class PlantSegDataset(Dataset):
                     "path": image_path if "image_path" in locals() else "N/A",
                 }
             )
-            print(f"Error loading image at index {idx}: {e}")
             next_idx = (idx + 1) % len(self)
             return self.__getitem__(next_idx)
 
@@ -82,14 +78,20 @@ class PlantDiseaseDataset(Dataset):
         with open("class_mapping.json", "r") as f:
             self.class_to_id = json.load(f)
 
-        self.filenames = [
-            f for f in sorted(os.listdir(self.images_dir)) if f.endswith(".jpg")
-        ]
+        self.filenames = [f for f in sorted(os.listdir(self.images_dir)) if f.endswith(".jpg")]
 
         self.error_log = []
 
     def __len__(self):
         return len(self.filenames)
+
+    def get_error_log(self):
+        if not self.error_log:
+            print("No errors encountered during loading.")
+        else:
+            print(f"Total errors: {len(self.error_log)}")
+            for error in self.error_log:
+                print(f"Index: {error['index']}, Error: {error['error']}, Path: {error['path']}")
 
     def __getitem__(self, idx):
         try:
@@ -111,7 +113,7 @@ class PlantDiseaseDataset(Dataset):
                     "path": image_path if "image_path" in locals() else "N/A",
                 }
             )
-            print(f"Error loading image at index {idx}: {e}")
+            # print(f"Error loading image at index {idx}: {e}")
             next_idx = (idx + 1) % len(self)
             return self.__getitem__(next_idx)
 
