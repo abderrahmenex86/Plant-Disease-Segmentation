@@ -1,17 +1,6 @@
-import json
-
 import torch
-from torchmetrics.classification import MulticlassF1Score, MulticlassJaccardIndex
+from torchmetrics.segmentation import DiceScore, MeanIoU
 from tqdm.auto import tqdm
-
-
-def compute_iou(preds, targets, threshold=0.5):
-    preds = (torch.sigmoid(preds) > threshold).float()
-    intersection = (preds * targets).sum((1, 2, 3))
-    union = (preds + targets).sum((1, 2, 3)) - intersection
-
-    iou = (intersection + 1e-6) / (union + 1e-6)
-    return iou.mean().item()
 
 
 def train_epoch(model, loader, criterion, optimizer, device, dice, iou):
@@ -41,10 +30,10 @@ def train_epoch(model, loader, criterion, optimizer, device, dice, iou):
         total_samples += batch_size
         total_loss += loss.item() * batch_size
 
-        probs = torch.softmax(predictions["out"], dim=1)
+        classes = predictions["out"].argmax(dim=1)
 
-        dice.update(probs, masks.squeeze(1).long())
-        iou.update(probs, masks.squeeze(1).long())
+        dice.update(classes, masks.squeeze(1).long())
+        iou.update(classes, masks.squeeze(1).long())
 
     epoch_dice = dice.compute().item()
     epoch_iou = iou.compute().item()
@@ -78,10 +67,10 @@ def evaluate(model, loader, criterion, device, dice, iou):
             total_samples += batch_size
             total_loss += loss.item() * batch_size
 
-            probs = torch.softmax(predictions, dim=1)
+            classes = predictions.argmax(dim=1)
 
-            dice.update(probs, masks.squeeze(1).long())
-            iou.update(probs, masks.squeeze(1).long())
+            dice.update(classes, masks.squeeze(1).long())
+            iou.update(classes, masks.squeeze(1).long())
 
     epoch_dice = dice.compute().item()
     epoch_iou = iou.compute().item()
@@ -101,8 +90,8 @@ def train(model, train_loader, val_loader, criterion, optimizer, scheduler, devi
         "val": {"loss": [], "dice": [], "iou": []},
     }
 
-    dice = MulticlassF1Score(num_classes=n_classes, average="macro").to(device)
-    iou = MulticlassJaccardIndex(num_classes=n_classes, average="macro").to(device)
+    dice = DiceScore(num_classes=n_classes, include_background=False, average="macro").to(device)
+    iou = MeanIoU(num_classes=n_classes, include_background=False).to(device)
 
     for epoch in tqdm(range(1, n_epochs + 1), unit="epoch", leave=True):
 
@@ -156,44 +145,3 @@ def train(model, train_loader, val_loader, criterion, optimizer, scheduler, devi
         tqdm.write("---> Last Checkpoint saved.")
 
     return history
-
-
-def parse_disease_name(filename):
-    import re
-
-    name = filename.strip("'\" \n").replace(".jpg", "")
-
-    name = re.sub(r"_[Bb]ing_.*$", "", name)
-    name = re.sub(r"_[Gg]oogle_.*$", "", name)
-    name = re.sub(r"_[Bb]aidu_.*$", "", name)
-
-    name = re.sub(r"_banana black sigatoka \(\d+\)$", "", name)
-    name = re.sub(r"_blotch \(\d+\)$", "", name)
-    name = re.sub(r"_black_chaff \(\d+\)$", "", name)
-
-    name = re.sub(r"_\d+$", "", name)
-
-    return name
-
-
-def build_taxonomy(images_dir, output_file="class_mapping.json"):
-    import json
-    import os
-
-    unique_classes = set()
-
-    for filename in os.listdir(images_dir):
-        if not filename.endswith(".jpg"):
-            continue
-
-        clean_name = parse_disease_name(filename)
-        unique_classes.add(clean_name)
-
-    sorted_classes = sorted(list(unique_classes))
-
-    class_to_id = {name: idx for idx, name in enumerate(sorted_classes)}
-
-    with open(output_file, "w") as f:
-        json.dump(class_to_id, f, indent=4)
-
-    print(f"Saved to {output_file}")

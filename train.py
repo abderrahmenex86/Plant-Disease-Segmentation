@@ -5,6 +5,7 @@ if __name__ == "__main__":
     import numpy as np
     import torch
     from torch.utils.data import DataLoader
+    from torchvision import tv_tensors
     from torchvision.transforms.v2 import (
         ColorJitter,
         Compose,
@@ -28,17 +29,17 @@ if __name__ == "__main__":
     torch.backends.cudnn.benchmark = True
 
     n_epochs = 40
-    batch_size = 8
+    batch_size = 10
 
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
-    train_workers = 16
-    val_workers = 4
+    train_workers = 20
+    val_workers = 6
     pin_memory = True
     prefetch_factor = 4
     persistent_workers = True
 
     n_classes = 116
-    criterion = MulticlassDiceLoss(num_classes=n_classes).to(device)
+    criterion = MulticlassDiceLoss().to(device)
 
     root_dir = "dataset/plantsegv3"
 
@@ -49,7 +50,13 @@ if __name__ == "__main__":
             RandomHorizontalFlip(p=0.5),
             RandomVerticalFlip(p=0.5),
             ColorJitter(brightness=0.3, contrast=0.3),
-            ToDtype(torch.float32, scale=True),
+            ToDtype(
+                dtype={
+                    tv_tensors.Image: torch.float32,
+                    tv_tensors.Mask: torch.int64,
+                },
+                scale=True,
+            ),
             Normalize(mean=[0.485, 0.456, 0.406], std=[0.229, 0.224, 0.225]),
         ]
     )
@@ -70,7 +77,13 @@ if __name__ == "__main__":
         [
             ToImage(),
             Resize((520, 520)),
-            ToDtype(torch.float32, scale=True),
+            ToDtype(
+                dtype={
+                    tv_tensors.Image: torch.float32,
+                    tv_tensors.Mask: torch.int64,
+                },
+                scale=True,
+            ),
             Normalize(mean=[0.485, 0.456, 0.406], std=[0.229, 0.224, 0.225]),
         ]
     )
@@ -93,6 +106,7 @@ if __name__ == "__main__":
         [
             {"params": model.model.backbone.parameters(), "lr": 1e-5},
             {"params": model.model.classifier.parameters(), "lr": 1e-3},
+            {"params": model.model.aux_classifier.parameters(), "lr": 1e-3},
         ],
         weight_decay=1e-3,
     )
