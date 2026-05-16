@@ -1,9 +1,24 @@
+import segmentation_models_pytorch as smp
 import torch.nn as nn
 from torchvision.models import MobileNet_V3_Large_Weights
 from torchvision.models.segmentation import (
     DeepLabV3_MobileNet_V3_Large_Weights,
     deeplabv3_mobilenet_v3_large,
 )
+
+
+class UNetDiseaseSegmenter(nn.Module):
+    def __init__(self, num_classes=116):
+        super().__init__()
+        self.model = smp.Unet(
+            encoder_name="mobilenet_v2",
+            encoder_weights="imagenet",
+            in_channels=3,
+            classes=num_classes,
+        )
+
+    def forward(self, x):
+        return self.model(x)
 
 
 class DiseaseSegmenter(nn.Module):
