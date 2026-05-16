@@ -20,7 +20,7 @@ if __name__ == "__main__":
     from dataset import PlantSegDataset
     from helpers import train
     from loss import MulticlassDiceLoss
-    from model import DiseaseSegmenter
+    from model import UNetDiseaseSegmenter
 
     random.seed(1337)
     np.random.seed(1337)
@@ -100,16 +100,24 @@ if __name__ == "__main__":
         persistent_workers=persistent_workers,
     )
 
-    model = DiseaseSegmenter(num_classes=n_classes).to(device)
+    model = UNetDiseaseSegmenter(num_classes=n_classes).to(device)
 
     optimizer = torch.optim.AdamW(
         [
-            {"params": model.model.backbone.parameters(), "lr": 1e-5},
-            {"params": model.model.classifier.parameters(), "lr": 1e-3},
-            {"params": model.model.aux_classifier.parameters(), "lr": 1e-3},
+            {"params": model.model.encoder.parameters(), "lr": 1e-5},
+            {"params": model.model.decoder.parameters(), "lr": 1e-3},
+            {"params": model.model.segmentation_head.parameters(), "lr": 1e-3},
         ],
         weight_decay=1e-3,
     )
+    # optimizer = torch.optim.AdamW(
+    #     [
+    #         {"params": model.model.backbone.parameters(), "lr": 1e-5},
+    #         {"params": model.model.classifier.parameters(), "lr": 1e-3},
+    #         {"params": model.model.aux_classifier.parameters(), "lr": 1e-3},
+    #     ],
+    #     weight_decay=1e-3,
+    # )
 
     scheduler = torch.optim.lr_scheduler.ReduceLROnPlateau(optimizer, mode="max", factor=0.5, patience=4)
 
