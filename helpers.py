@@ -30,7 +30,8 @@ def train_epoch(model, loader, criterion, optimizer, device, dice, iou):
         total_samples += batch_size
         total_loss += loss.item() * batch_size
 
-        classes = predictions["out"].argmax(dim=1)
+        # classes = predictions["out"].argmax(dim=1)
+        classes = predictions.argmax(dim=1)
 
         dice.update(classes, masks.squeeze(1).long())
         iou.update(classes, masks.squeeze(1).long())
