@@ -27,6 +27,7 @@ hf_cache/
 fetch.sh
 fetch.py
 notebook.py
+inference.py
 
 *.ckpt
 *.csv
