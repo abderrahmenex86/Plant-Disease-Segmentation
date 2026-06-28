@@ -22,7 +22,7 @@ def main():
         download_dataset(destination_directory=parsed_arguments.root_dir)
 
     elif parsed_arguments.mode == "verify":
-        verify_dataset_structure(dataset_directory=f"{parsed_arguments.root_dir}/plantsegv3")
+        verify_dataset_structure(dataset_directory=f"{parsed_arguments.root_dir}/plantseg")
 
     elif parsed_arguments.mode == "plot":
         generate_analytics_plots()
