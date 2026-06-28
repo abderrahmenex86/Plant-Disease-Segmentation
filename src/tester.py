@@ -1,91 +1,76 @@
 import torch
 
 from src.dataset import get_dataloaders
-from src.factory import build_criterion, build_model, build_optimizer
+from src.factory import build_pipeline
 
 
-def run_sanity_checks(args):
-    print("=" * 60)
+def run_sanity_checks(**kwargs):
+    print("============================================================")
     print("RUNNING GRADIENT AND PIPELINE INTEGRITY CHECKS")
-    print("=" * 60)
+    print("============================================================")
 
-    print("[Test 1/4] Checking DataLoader slicing and bounds...")
-    try:
-        train_loader, val_loader = get_dataloaders(
-            root_dir=args.root_dir, batch_size=2, num_classes=args.num_classes, img_size=args.img_size, limit_dataset=10
-        )
-        images, masks = next(iter(train_loader))
-        print(f"  --> Success. Batch loading specs:")
-        print(f"      Image Shape: {images.shape} (Expected: [2, 3, {args.img_size}, {args.img_size}])")
-        print(f"      Mask Shape : {masks.shape}")
+    test_kwargs = kwargs.copy()
+    test_kwargs["batch_size"] = 2
+    test_kwargs["limit_dataset"] = 5
 
-        assert images.min() >= -3.0 and images.max() <= 3.0, "Normalization bounds missing."
-        if args.num_classes == 1:
-            assert masks.min() >= 0.0 and masks.max() <= 1.0, "Mask bounds out of range."
-        else:
-            assert masks.min() >= 0 and masks.max() < args.num_classes, "Index range overflow."
-        print("  --> Tensor boundaries checked.")
-    except Exception as e:
-        print(f"  [FAIL] DataLoader check: {e}")
-        return False
+    train_loader, _ = get_dataloaders(**test_kwargs)
+    images_batch, masks_batch = next(iter(train_loader))
 
-    print("[Test 2/4] Testing forward execution passes...")
-    try:
-        model = build_model(
-            model_type=args.model_type,
-            num_classes=args.num_classes,
-            encoder_name=args.encoder_name,
-            encoder_weights=args.encoder_weights,
-        ).to(args.device)
-        model.train()
+    print(f"  --> Batch loading checks verified.")
+    print(f"      Images Batch Shape: {list(images_batch.shape)}")
+    print(f"      Masks Batch Shape : {list(masks_batch.shape)}")
 
-        test_images = images.to(args.device)
-        outputs = model(test_images)
+    assert images_batch.shape == (2, 3, test_kwargs["img_size"], test_kwargs["img_size"]), "Images shape mismatch."
+    assert masks_batch.shape == (2, 1, test_kwargs["img_size"], test_kwargs["img_size"]), "Masks shape mismatch."
+    assert images_batch.min() >= -3.0 and images_batch.max() <= 3.0, "Normalization out of valid scaling bounds."
 
-        if isinstance(outputs, dict):
-            print(f"  --> Found aux headers: {list(outputs.keys())}")
-        else:
-            print(f"  --> Output Shape: {outputs.shape}")
-        print("  --> Forward pass calculated.")
-    except Exception as e:
-        print(f"  [FAIL] Forward pass check: {e}")
-        return False
+    if test_kwargs["num_classes"] == 1:
+        assert masks_batch.min() >= 0.0 and masks_batch.max() <= 1.0, "Binary mask values exceed boundaries."
+    else:
+        assert (
+            masks_batch.min() >= 0 and masks_batch.max() < test_kwargs["num_classes"]
+        ), "Target class indices exceed num_classes range."
+
+    print("[Test 2/4] Testing forward execution pass...")
+    model, criterion, optimizer, _ = build_pipeline(**test_kwargs)
+    model.train()
+
+    device = test_kwargs["device"]
+    test_images = images_batch.to(device)
+    test_masks = masks_batch.to(device)
+
+    outputs = model(test_images)
+    assert outputs.shape == (
+        2,
+        test_kwargs["num_classes"],
+        test_kwargs["img_size"],
+        test_kwargs["img_size"],
+    ), "Model output dimensions mismatch."
+    print("  --> Forward pass verification successful.")
 
     print("[Test 3/4] Testing gradient backward pass...")
-    try:
-        criterion = build_criterion(args.num_classes, pos_weight=args.pos_weight)
-        test_masks = masks.to(args.device)
-        loss = criterion(outputs, test_masks)
-        loss.backward()
+    loss_value = criterion(outputs, test_masks)
+    loss_value.backward()
 
-        has_grads = False
-        grad_nan_check = False
-        for name, param in model.named_parameters():
-            if param.requires_grad and param.grad is not None:
-                has_grads = True
-                if torch.isnan(param.grad).any():
-                    grad_nan_check = True
-                    print(f"      [WARNING] Gradient NaN in layer: {name}")
+    has_gradients = False
+    gradient_anomaly_detected = False
+    for parameter_name, parameter in model.named_parameters():
+        if parameter.requires_grad and parameter.grad is not None:
+            has_gradients = True
+            if torch.isnan(parameter.grad).any() or torch.isinf(parameter.grad).any():
+                gradient_anomaly_detected = True
+                print(f"      [WARNING] Gradient anomaly (NaN/Inf) detected inside: {parameter_name}")
 
-        assert has_grads, "No gradients were computed."
-        assert not grad_nan_check, "Gradients contained NaNs."
-        print("  --> Backward pass verified.")
-    except Exception as e:
-        print(f"  [FAIL] Backward pass check: {e}")
-        return False
+    assert has_gradients, "No parameter gradients were updated in backward pass."
+    assert not gradient_anomaly_detected, "Gradients contain invalid computational states."
+    print("  --> Backward pass and gradient flow successfully verified.")
 
-    print("[Test 4/4] Verifying parameter groupings...")
-    try:
-        optimizer = build_optimizer(model, lr=1e-3, weight_decay=1e-3, model_type=args.model_type)
-        print(f"  --> Param Groups Identified: {len(optimizer.param_groups)}")
-        for idx, grp in enumerate(optimizer.param_groups):
-            print(f"      Group {idx} Target LR: {grp['lr']}")
-        print("  --> Parameter group mapping verified.")
-    except Exception as e:
-        print(f"  [FAIL] Parameter splitting check: {e}")
-        return False
+    print("[Test 4/4] Verifying parameter optimization grouping...")
+    assert len(optimizer.param_groups) > 0, "No parameter groups initialized inside optimizer."
+    for group_index, parameter_group in enumerate(optimizer.param_groups):
+        print(f"      Group {group_index} | Base Learning Rate: {parameter_group['lr']}")
 
-    print("\n" + "=" * 60)
+    print("\n============================================================")
     print("SANITY CHECKS COMPLETED. PIPELINE VERIFIED.")
-    print("=" * 60 + "\n")
+    print("============================================================")
     return True
