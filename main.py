@@ -20,7 +20,7 @@ def main():
     )
 
     parser.add_argument("--root_dir", type=str, default="dataset/plantsegv3", help="Target dataset folder path")
-    parser.add_argument("--batch_size", type=int, default=10, help="DataLoader batch size")
+    parser.add_argument("--batch_size", type=int, default=8, help="DataLoader batch size")
     parser.add_argument("--img_size", type=int, default=520, help="Resolution sizing parameter")
     parser.add_argument("--num_classes", type=int, default=116, help="Target classification mapping count")
 
@@ -45,8 +45,8 @@ def main():
         help="LR decay sequence builder",
     )
 
-    parser.add_argument("--epochs", type=int, default=40, help="Training sweeps limit")
-    parser.add_argument("--patience", type=int, default=8, help="Early stopping patience threshold")
+    parser.add_argument("--epochs", type=int, default=50, help="Training sweeps limit")
+    parser.add_argument("--patience", type=int, default=5, help="Early stopping patience threshold")
     parser.add_argument("--resume", action="store_true", help="Flag to recover and continue training")
     parser.add_argument("--optuna_trials", type=int, default=15, help="Optuna hyperparameter sweep scale")
 
@@ -126,6 +126,10 @@ def main():
         scheduler = build_scheduler(optimizer, scheduler_type=args.scheduler)
         criterion = build_criterion(args.num_classes, pos_weight=args.pos_weight)
 
+        trainer_kwargs = vars(args).copy()
+        for key in ["optimizer", "scheduler", "device"]:
+            trainer_kwargs.pop(key, None)
+
         trainer = Trainer(
             model=model,
             train_loader=train_loader,
@@ -134,7 +138,7 @@ def main():
             optimizer=optimizer,
             scheduler=scheduler,
             device=args.device,
-            **vars(args),
+            **trainer_kwargs,
         )
 
         if checkpoint_to_load:
