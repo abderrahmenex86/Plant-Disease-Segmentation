@@ -4,14 +4,14 @@ import torch.nn.functional as F
 
 
 class DoubleConv(nn.Module):
-    def __init__(self, in_c, out_c):
+    def __init__(self, in_channels, out_channels):
         super().__init__()
         self.net = nn.Sequential(
-            nn.Conv2d(in_c, out_c, 3, padding=1, bias=False),
-            nn.BatchNorm2d(out_c),
+            nn.Conv2d(in_channels, out_channels, 3, padding=1, bias=False),
+            nn.BatchNorm2d(out_channels),
             nn.ReLU(inplace=True),
-            nn.Conv2d(out_c, out_c, 3, padding=1, bias=False),
-            nn.BatchNorm2d(out_c),
+            nn.Conv2d(out_channels, out_channels, 3, padding=1, bias=False),
+            nn.BatchNorm2d(out_channels),
             nn.ReLU(inplace=True),
         )
 
@@ -20,17 +20,16 @@ class DoubleConv(nn.Module):
 
 
 class UNet(nn.Module):
-
-    def __init__(self, in_ch=3, num_classes=116, base_c=64):
+    def __init__(self, in_channels=3, num_classes=116, base_channels=64):
         super().__init__()
-        self.inc = DoubleConv(in_ch, base_c)
-        self.d1 = nn.Sequential(nn.MaxPool2d(2), DoubleConv(base_c, base_c * 2))
-        self.d2 = nn.Sequential(nn.MaxPool2d(2), DoubleConv(base_c * 2, base_c * 4))
-        self.u1 = nn.ConvTranspose2d(base_c * 4, base_c * 2, 2, stride=2)
-        self.c1 = DoubleConv(base_c * 4, base_c * 2)
-        self.u2 = nn.ConvTranspose2d(base_c * 2, base_c, 2, stride=2)
-        self.c2 = DoubleConv(base_c * 2, base_c)
-        self.outc = nn.Conv2d(base_c, num_classes, 1)
+        self.inc = DoubleConv(in_channels, base_channels)
+        self.d1 = nn.Sequential(nn.MaxPool2d(2), DoubleConv(base_channels, base_channels * 2))
+        self.d2 = nn.Sequential(nn.MaxPool2d(2), DoubleConv(base_channels * 2, base_channels * 4))
+        self.u1 = nn.ConvTranspose2d(base_channels * 4, base_channels * 2, 2, stride=2)
+        self.c1 = DoubleConv(base_channels * 4, base_channels * 2)
+        self.u2 = nn.ConvTranspose2d(base_channels * 2, base_channels, 2, stride=2)
+        self.c2 = DoubleConv(base_channels * 2, base_channels)
+        self.outc = nn.Conv2d(base_channels, num_classes, 1)
 
     def forward(self, x):
         x1, x2 = self.inc(x), self.d1(self.inc(x))
@@ -39,7 +38,6 @@ class UNet(nn.Module):
 
 
 class DeepLabV3(nn.Module):
-
     def __init__(self, num_classes):
         super().__init__()
         from torchvision.models.segmentation import (
@@ -56,7 +54,6 @@ class DeepLabV3(nn.Module):
 
 
 class LinkNet(nn.Module):
-
     def __init__(self, num_classes):
         super().__init__()
         import segmentation_models_pytorch as smp
@@ -68,7 +65,6 @@ class LinkNet(nn.Module):
 
 
 class SegFormer(nn.Module):
-
     def __init__(self, num_classes):
         super().__init__()
         import segmentation_models_pytorch as smp
@@ -82,11 +78,11 @@ class SegFormer(nn.Module):
 class FocalDiceLoss(nn.Module):
     def __init__(self, num_classes, alpha=0.25, gamma=2.0):
         super().__init__()
-        self.nc, self.alpha, self.gamma = num_classes, alpha, gamma
+        self.num_classes, self.alpha, self.gamma = num_classes, alpha, gamma
 
     def forward(self, p, t):
         t_long = t.squeeze(1).long()
-        if self.nc == 1:
+        if self.num_classes == 1:
             ce = F.binary_cross_entropy_with_logits(p, t.float(), reduction="none")
             pt = torch.exp(-ce)
             focal = (self.alpha * (1 - pt) ** self.gamma * ce).mean()
@@ -96,6 +92,6 @@ class FocalDiceLoss(nn.Module):
             ce = F.cross_entropy(p, t_long, reduction="none")
             pt = torch.exp(-ce)
             focal = ((1 - pt) ** self.gamma * ce).mean()
-            p_s, t_oh = F.softmax(p, 1), F.one_hot(t_long, self.nc).permute(0, 3, 1, 2).float()
+            p_s, t_oh = F.softmax(p, 1), F.one_hot(t_long, self.num_classes).permute(0, 3, 1, 2).float()
             dice = 1 - (2.0 * (p_s * t_oh).sum((2, 3)) / (p_s.sum((2, 3)) + t_oh.sum((2, 3)) + 1e-6)).mean()
         return focal + dice
