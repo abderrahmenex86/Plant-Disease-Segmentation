@@ -6,7 +6,12 @@ from src.models import DeepLabV3, FocalDiceLoss, LinkNet, SegFormer, UNet
 
 def build_model(model_type, num_classes, **kwargs):
     model_mapping = {
-        "unet": lambda: UNet(in_channels=3, num_classes=num_classes, base_channels=kwargs.get("base_channels", 64)),
+        "unet": lambda: UNet(
+            in_channels=3,
+            num_classes=num_classes,
+            encoder_name=kwargs.get("encoder_name", "resnet34"),
+            encoder_weights=kwargs.get("encoder_weights", "imagenet"),
+        ),
         "deeplabv3": lambda: DeepLabV3(num_classes=num_classes),
         "linknet": lambda: LinkNet(num_classes=num_classes),
         "segformer": lambda: SegFormer(num_classes=num_classes),

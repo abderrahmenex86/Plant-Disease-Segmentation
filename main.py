@@ -44,6 +44,8 @@ def main():
     hyperparameters.setdefault("learning_rate", 1e-3)
     hyperparameters.setdefault("weight_decay", 1e-4)
     hyperparameters.setdefault("scheduler_type", "ReduceLROnPlateau")
+    hyperparameters.setdefault("encoder_name", "resnet34")
+    hyperparameters.setdefault("encoder_weights", "imagenet")
 
     if hyperparameters["run_dir"] is None:
         if parsed_arguments.mode in ["train", "optimize"]:
