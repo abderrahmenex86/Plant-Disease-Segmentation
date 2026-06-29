@@ -36,17 +36,29 @@ def get_dataloaders(root_dir, batch_size, img_size, num_classes, limit_dataset=N
         v2.Normalize(mean=[0.485, 0.456, 0.406], std=[0.229, 0.224, 0.225]),
     ]
 
+    rotation_degrees = kwargs.get("aug_rotation", 25)
+    translation_limit = kwargs.get("aug_translation", 0.1)
+    scale_limit = kwargs.get("aug_scale", 0.1)
+    perspective_distortion = kwargs.get("aug_perspective", 0.2)
+
     train_transforms = v2.Compose(
         base_transforms
         + [
             v2.RandomHorizontalFlip(p=kwargs.get("aug_hflip_p", 0.5)),
             v2.RandomVerticalFlip(p=kwargs.get("aug_vflip_p", 0.5)),
-            v2.RandomRotation(degrees=kwargs.get("aug_rotation", 25)),
+            v2.RandomRotation(degrees=rotation_degrees),
+            v2.RandomAffine(
+                degrees=rotation_degrees,
+                translate=(translation_limit, translation_limit),
+                scale=(1.0 - scale_limit, 1.0 + scale_limit),
+            ),
+            v2.RandomPerspective(distortion_scale=perspective_distortion, p=kwargs.get("aug_perspective_p", 0.3)),
             v2.ColorJitter(
                 brightness=kwargs.get("aug_brightness", 0.2),
                 contrast=kwargs.get("aug_contrast", 0.2),
                 saturation=kwargs.get("aug_saturation", 0.2),
             ),
+            v2.RandomApply([v2.GaussianBlur(kernel_size=5, sigma=(0.1, 2.0))], p=kwargs.get("aug_blur_p", 0.3)),
         ]
         + normalization_transforms
     )
