@@ -28,8 +28,18 @@ class Trainer:
         self.history = {"train": {"loss": [], "dice": [], "iou": []}, "val": {"loss": [], "dice": [], "iou": []}}
 
         metric_classes = 2 if self.num_classes == 1 else self.num_classes
-        self.dice_metric = DiceScore(num_classes=metric_classes, average="macro", input_format="index").to(device)
-        self.iou_metric = MeanIoU(num_classes=metric_classes, input_format="index").to(device)
+        include_background_flag = kwargs.get("include_background", False)
+
+        self.dice_metric = DiceScore(
+            num_classes=metric_classes,
+            average="macro",
+            input_format="index",
+            include_background=include_background_flag,
+        ).to(device)
+
+        self.iou_metric = MeanIoU(
+            num_classes=metric_classes, input_format="index", include_background=include_background_flag
+        ).to(device)
 
         self._serialize_architecture()
 
