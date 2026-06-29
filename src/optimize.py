@@ -2,6 +2,7 @@ import json
 from pathlib import Path
 
 import optuna
+from tqdm.auto import tqdm
 
 from src.dataset import get_dataloaders
 from src.factory import build_pipeline
@@ -9,7 +10,7 @@ from src.trainer import Trainer
 
 
 def run_optuna_study(**kwargs):
-    optuna.logging.set_verbosity(optuna.logging.INFO)
+    optuna.logging.set_verbosity(optuna.logging.WARNING)
     run_directory = Path(kwargs.get("run_dir", "artifacts/default_optuna"))
     run_directory.mkdir(parents=True, exist_ok=True)
 
@@ -49,7 +50,14 @@ def run_optuna_study(**kwargs):
         return max(validation_dice_history) if validation_dice_history else 0.0
 
     study = optuna.create_study(direction="maximize")
-    study.optimize(objective, n_trials=kwargs.get("optuna_trials", 30))
+    total_trials = kwargs.get("optuna_trials", 30)
+
+    with tqdm(total=total_trials, desc="Optuna Trials", position=0) as progress_bar:
+
+        def tqdm_callback(active_study, active_trial):
+            progress_bar.update(1)
+
+        study.optimize(objective, n_trials=total_trials, callbacks=[tqdm_callback])
 
     summary_data = {
         "best_trial_value": study.best_value,
@@ -66,3 +74,18 @@ def run_optuna_study(**kwargs):
     }
 
     (run_directory / "optuna_summary.json").write_text(json.dumps(summary_data, indent=4))
+
+    cli_arguments = []
+    for parameter_key, parameter_value in study.best_params.items():
+        if isinstance(parameter_value, float):
+            cli_arguments.append(f"--{parameter_key} {parameter_value:.5f}")
+        else:
+            cli_arguments.append(f"--{parameter_key} {parameter_value}")
+
+    command_string = " ".join(cli_arguments)
+
+    print(f"\n============================================================")
+    print(f"OPTIMIZATION COMPLETE | Best Validation Dice: {study.best_value:.2f}%")
+    print(f"============================================================")
+    print(f"Execute this command for full-scale training:\n")
+    print(f"python main.py --mode train --model_type {kwargs.get('model_type')} {command_string}\n")
