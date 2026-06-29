@@ -23,12 +23,33 @@ def build_model(model_type, num_classes, **kwargs):
     return model_mapping[model_type]()
 
 
-def build_optimizer(model_parameters, optimizer_type, learning_rate, weight_decay, **kwargs):
+def build_optimizer(model_instance, optimizer_type, learning_rate, weight_decay, **kwargs):
     optimizer_class = getattr(torch.optim, optimizer_type, None)
     if optimizer_class is None:
         raise ValueError(f"Unknown optimizer: {optimizer_type}. Check torch.optim spelling.")
 
-    return optimizer_class(model_parameters, lr=learning_rate, weight_decay=weight_decay)
+    encoder_parameters = []
+    decoder_parameters = []
+
+    if hasattr(model_instance, "net") and hasattr(model_instance.net, "encoder"):
+        encoder_parameters = list(model_instance.net.encoder.parameters())
+        decoder_parameters = list(model_instance.net.decoder.parameters()) + list(
+            model_instance.net.segmentation_head.parameters()
+        )
+    elif hasattr(model_instance, "net") and hasattr(model_instance.net, "backbone"):
+        encoder_parameters = list(model_instance.net.backbone.parameters())
+        decoder_parameters = list(model_instance.net.classifier.parameters())
+    else:
+        decoder_parameters = list(model_instance.parameters())
+
+    parameter_groups = []
+
+    if encoder_parameters:
+        parameter_groups.append({"params": encoder_parameters, "lr": learning_rate * 0.1})
+    if decoder_parameters:
+        parameter_groups.append({"params": decoder_parameters, "lr": learning_rate})
+
+    return optimizer_class(parameter_groups, weight_decay=weight_decay)
 
 
 def build_scheduler(optimizer, scheduler_type, **kwargs):
@@ -48,7 +69,7 @@ def build_scheduler(optimizer, scheduler_type, **kwargs):
             optimizer, step_size=kwargs.get("scheduler_step_size", 10), gamma=kwargs.get("scheduler_gamma", 0.1)
         )
     elif scheduler_type == "CosineAnnealingLR":
-        return scheduler_class(optimizer, T_max=kwargs.get("scheduler_t_max", kwargs.get("epochs", 50)))
+        return scheduler_class(optimizer, T_max=kwargs.get("scheduler_t_max", kwargs.get("epochs", 100)))
 
     return scheduler_class(optimizer)
 
@@ -63,9 +84,7 @@ def build_pipeline(model_type, num_classes, optimizer_type, learning_rate, weigh
         num_classes=num_classes, alpha=kwargs.get("focal_alpha", 0.25), gamma=kwargs.get("focal_gamma", 2.0)
     )
 
-    optimizer_instance = build_optimizer(
-        model_instance.parameters(), optimizer_type, learning_rate, weight_decay, **kwargs
-    )
+    optimizer_instance = build_optimizer(model_instance, optimizer_type, learning_rate, weight_decay, **kwargs)
 
     scheduler_instance = build_scheduler(optimizer_instance, scheduler_type, **kwargs)
 
