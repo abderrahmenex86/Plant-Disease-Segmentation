@@ -27,11 +27,11 @@ def run_optuna_study(**kwargs):
             suggested_base_channels = trial.suggest_categorical("base_channels", [32, 64])
             trial_kwargs["base_channels"] = suggested_base_channels
 
-        trial_kwargs["epochs"] = kwargs.get("optuna_epochs", 5)
-        trial_kwargs["patience"] = kwargs.get("optuna_patience", 2)
+        trial_kwargs["epochs"] = kwargs.get("optuna_epochs", 10)
+        trial_kwargs["patience"] = kwargs.get("optuna_patience", 5)
         trial_kwargs["run_dir"] = str(run_directory / f"trial_{trial.number}")
 
-        train_loader, val_loader = get_dataloaders(limit_dataset=200, **trial_kwargs)
+        train_loader, val_loader = get_dataloaders(limit_dataset=512, **trial_kwargs)
         model, criterion, optimizer, scheduler = build_pipeline(**trial_kwargs)
 
         trainer = Trainer(
@@ -49,7 +49,7 @@ def run_optuna_study(**kwargs):
         return max(validation_dice_history) if validation_dice_history else 0.0
 
     study = optuna.create_study(direction="maximize")
-    study.optimize(objective, n_trials=kwargs.get("optuna_trials", 15))
+    study.optimize(objective, n_trials=kwargs.get("optuna_trials", 30))
 
     summary_data = {
         "best_trial_value": study.best_value,

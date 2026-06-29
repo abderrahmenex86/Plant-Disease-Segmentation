@@ -37,9 +37,9 @@ def main():
 
     hyperparameters.setdefault("num_classes", 116)
     hyperparameters.setdefault("img_size", 256)
-    hyperparameters.setdefault("batch_size", 16)
-    hyperparameters.setdefault("epochs", 50)
-    hyperparameters.setdefault("patience", 5)
+    hyperparameters.setdefault("batch_size", 32)
+    hyperparameters.setdefault("epochs", 100)
+    hyperparameters.setdefault("patience", 10)
     hyperparameters.setdefault("optimizer_type", "AdamW")
     hyperparameters.setdefault("learning_rate", 1e-3)
     hyperparameters.setdefault("weight_decay", 1e-4)
